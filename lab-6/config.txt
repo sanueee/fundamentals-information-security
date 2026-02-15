@@ -1,0 +1,13 @@
+remove_comments=1
+remove_whitespace=1
+rename_variables=1
+rename_functions=1
+is_numeric=1
+is_string=1
+add_junk_variables=10
+add_junk_functions=10
+shuffle_functions=1
+variable_prefix=_nikita
+function_prefix=_f
+junk_var_count=10
+junk_func_count=50
