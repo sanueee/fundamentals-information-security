@@ -1,4 +1,3 @@
-import os
 from collections import Counter
 import string
 abbr_list = set()  # список слов-аббревиатур
