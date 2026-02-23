@@ -7,7 +7,7 @@
 #define XOR_KEY 0x41
 
 int check_password(); // функция для сравнения вводимого пароля с истинным (п.1)
-void coding_password(); // функция читает зашифрованный пароль и дешифрует его (п.8)
+void coding_password();
 
 int main(void) {
     coding_password();

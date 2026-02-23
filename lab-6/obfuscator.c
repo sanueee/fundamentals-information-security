@@ -15,10 +15,12 @@ typedef struct {
     int shuffle_functions;
     int add_junk_variables;
     int add_junk_functions;
+    int add_junk_loops;
     char variable_prefix[32];
     char function_prefix[32];
     int junk_var_count;
     int junk_func_count;
+    int junk_loop_count;
 } Config;
 
 typedef struct {
@@ -42,6 +44,7 @@ int find_identifiers(const char *input, Identifier *identifiers, int max_count);
 char* rename_identifiers(const char *input, Config *config);
 char* add_junk_variables(const char *input, int count);
 char* add_junk_functions(const char *input, int count);
+char* add_junk_loops(const char *input, int count);
 char* extract_prototype(const char *func_text);
 char* create_prototypes(Function *functions, int count);
 int extract_functions(const char *input, Function *functions, int max_count);
@@ -104,6 +107,13 @@ int main(int argc, char** argv) {
     // добавление мусорных функций
     if (cur_config.add_junk_functions) {
         temp = add_junk_functions(code, cur_config.junk_func_count);
+        free(code);
+        code = temp;
+    }
+
+    // добавление мусорных циклов
+    if (cur_config.add_junk_loops) {
+        temp = add_junk_loops(code, cur_config.junk_loop_count);
         free(code);
         code = temp;
     }
@@ -435,12 +445,17 @@ char* add_junk_variables(const char *input, int count) {
 }
 
 char* add_junk_functions(const char *input, int count) {
-    char junk[4096] = {0};
+    char junk_defs[4096] = {0};
+    char junk_calls[1024] = {0};
     
     for (int i = 0; i < count; i++) {
         char func[256];
         snprintf(func, sizeof(func), " void _dead%d(void) { int _x%d = %d; _x%d *= 2;} ", i, i, i, i);
-        strcat(junk, func);
+        strcat(junk_defs, func);
+        
+        char call[64];
+        snprintf(call, sizeof(call), "_dead%d(); ", i);  // ← новое
+        strcat(junk_calls, call);
     }
     
     const char *last_include = NULL;
@@ -471,14 +486,60 @@ char* add_junk_functions(const char *input, int count) {
         }
     }
 
+    size_t result_size = strlen(input) + strlen(junk_defs) + strlen(junk_calls) + 10;
+    char *temp = malloc(result_size);
+    strncpy(temp, input, insert_pos);
+    temp[insert_pos] = '\0';
+    strcat(temp, junk_defs);
+    strcat(temp, input + insert_pos);
+    
+    const char *main_pos = strstr(temp, "int main");
+    if (!main_pos) return temp;
+    const char *bracket = strchr(main_pos, '{');
+    if (!bracket) return temp;
+    
+    size_t pos = bracket - temp + 1;
+    char *result = malloc(result_size);
+    strncpy(result, temp, pos);
+    result[pos] = '\0';
+    strcat(result, junk_calls);
+    strcat(result, temp + pos);
+    free(temp);
+    
+    return result;
+}
+
+char* add_junk_loops(const char *input, int count) {
+    char junk[4096] = {0};
+    for (int i = 0; i < count; i++) {
+        char loop[256];
+        int iterations = (rand() % 10) + 1;
+        snprintf(loop, sizeof(loop),
+            "{ int _loop%d = 0; for (int _li%d = 0; _li%d < %d; _li%d++) { _loop%d += _li%d; } } ",
+            i, i, i, iterations, i, i, i);
+        strcat(junk, loop);
+    }
+
+    const char *main_pos = strstr(input, "int main");
+    if (!main_pos) {
+        return strdup(input);
+    }
+
+    const char *bracket = strchr(main_pos, '{');
+    if (!bracket) {
+        return strdup(input);
+    }
+
+    size_t pos = bracket - input + 1;
+
     size_t result_size = strlen(input) + strlen(junk) + 10;
     char *result = malloc(result_size);
-    
-    strncpy(result, input, insert_pos);
-    result[insert_pos] = '\0';    
+
+    strncpy(result, input, pos);
+    result[pos] = '\0';
     strcat(result, junk);
-    strcat(result, input + insert_pos);
-    
+    strcat(result, input + pos);
+
     return result;
 }
 
@@ -744,6 +805,9 @@ void parse_config_line(char *line, Config *config) { // парсинг стро�
     else if (strcmp(key, "add_junk_functions") == 0) {
         config->add_junk_functions = atoi(value);
     }
+    else if (strcmp(key, "add_junk_loops") == 0) {
+        config->add_junk_loops = atoi(value);
+    }
     else if (strcmp(key, "variable_prefix") == 0) {
         strncpy(config->variable_prefix, value, 31);
         config->variable_prefix[31] = '\0';
@@ -758,6 +822,9 @@ void parse_config_line(char *line, Config *config) { // парсинг стро�
     else if (strcmp(key, "junk_func_count") == 0) {
         config->junk_func_count = atoi(value);
     }
+    else if (strcmp(key, "junk_loop_count") == 0) {
+        config->junk_loop_count = atoi(value);
+    }
 }
 
 Config load_config(const char *filename) { // загрузка конфига в виде структуры
@@ -771,10 +838,12 @@ Config load_config(const char *filename) { // загрузка конфига в
         .shuffle_functions = 1,
         .add_junk_variables = 0,
         .add_junk_functions = 0,
+        .add_junk_loops = 0,
         .variable_prefix = "_v",
         .function_prefix = "_f",
         .junk_var_count = 5,
-        .junk_func_count = 3
+        .junk_func_count = 3,
+        .junk_loop_count = 3
     };
 
     FILE *file = fopen(filename, "r");
