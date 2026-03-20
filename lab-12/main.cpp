@@ -5,11 +5,8 @@
 
 #include <windows.h>
 #include <aclapi.h>
-#include <sddl.h>
 #include <iostream>
 #include <string>
-
-#pragma comment(lib, "advapi32.lib")
 
 void PrintLastError(const std::string& context)
 {
@@ -52,7 +49,7 @@ int CmdCreate(const std::string& path)
 
 int CmdRead(const std::string& path)
 {
-    std::cout << "[READ] Чтение файла: " << path << "\n";
+    std::cout << "[READ] reading: " << path << "\n";
 
     HANDLE hFile = CreateFileA(
         path.c_str(),
@@ -67,19 +64,18 @@ int CmdRead(const std::string& path)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         PrintLastError("CreateFile");
-        std::cerr << "[РЕЗУЛЬТАТ] Доступ запрещён или файл не найден.\n";
+        std::cerr << "[result] access denied or file not found.\n";
         return 1;
     }
 
     char buffer[512];
     DWORD bytesRead = 0;
-    std::cout << "[СОДЕРЖИМОЕ]\n";
+    std::cout << "[text] ";
     while (ReadFile(hFile, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0)
     {
         buffer[bytesRead] = '\0';
         std::cout << buffer;
     }
-    std::cout << "\n[РЕЗУЛЬТАТ] Чтение завершено.\n";
 
     CloseHandle(hFile);
     return 0;
@@ -127,7 +123,11 @@ int CmdEdit(const std::string& path, const std::string& username, const std::str
 
     DWORD accessMask = 0;
     if      (accessLevel == "read")  accessMask = GENERIC_READ;
-    else if (accessLevel == "write") accessMask = GENERIC_WRITE;
+    else if (accessLevel == "write")
+    accessMask = FILE_WRITE_DATA
+               | FILE_APPEND_DATA
+               | FILE_WRITE_ATTRIBUTES
+               | FILE_WRITE_EA;
     else if (accessLevel == "full")  accessMask = GENERIC_ALL;
     else
     {
